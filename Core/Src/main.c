@@ -115,8 +115,8 @@ void USBH_HID_EventCallback(USBH_HandleTypeDef *phost)
 		if (Y_Val > 127) Y_Val -= 255;
 		//int len = sprintf (Uart_Buf, "X=%d, Y=%d, Button1=%d, Button2=%d, Button3=%d\n\n", X_Val, Y_Val, Mouse_Info->buttons[0],Mouse_Info->buttons[1], Mouse_Info->buttons[2]);
 		//HAL_UART_Transmit(&huart2, (uint8_t *) Uart_Buf, len, 100);
-	    HAL_GPIO_TogglePin (GPIOC, GPIO_PIN_13);
-	    HAL_GPIO_TogglePin (GPIOC, GPIO_PIN_13);
+	    //HAL_GPIO_TogglePin (GPIOC, GPIO_PIN_13);
+	    //HAL_GPIO_TogglePin (GPIOC, GPIO_PIN_13);
 
 	    data[0] = 0;
 	    if(Mouse_Info->buttons[0]) { data[0] |= 1UL << 0;}
@@ -301,7 +301,6 @@ int main(void)
             XSTEPS--;
         }
 
-
         if (YSTEPS != 0) {
             if (YSIGN)
                 AMIGA_Up();
@@ -309,8 +308,9 @@ int main(void)
                AMIGA_Down();
             YSTEPS--;
         }
-
     }
+    data[1]=0;
+    data[2]=0;
     __enable_irq();
   }
   /* USER CODE END 3 */
