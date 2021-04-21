@@ -25,6 +25,7 @@
 /* USER CODE BEGIN Includes */
 #include "usbh_hid.h"
 #include "stdio.h"
+#include "dwt_stm32_delay.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -54,8 +55,6 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
-TIM_HandleTypeDef htim4;
-
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
@@ -66,7 +65,6 @@ UART_HandleTypeDef huart2;
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
-static void MX_TIM4_Init(void);
 void MX_USB_HOST_Process(void);
 
 /* USER CODE BEGIN PFP */
@@ -85,7 +83,6 @@ void AMIGA_Right(void);
 void AMIGA_Down(void);
 void AMIGA_Up(void);
 
-void delay_us (uint16_t);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -112,13 +109,13 @@ void USBH_HID_EventCallback(USBH_HandleTypeDef *phost)
 	{
 		HID_MOUSE_Info_TypeDef *Mouse_Info;
 		Mouse_Info = USBH_HID_GetMouseInfo(phost);  // Get the info
-		int X_Val = Mouse_Info->x;  // get the x value
-		int Y_Val = Mouse_Info->y;  // get the y value
+		int16_t X_Val = Mouse_Info->x;  // get the x value
+		int16_t Y_Val = Mouse_Info->y;  // get the y value
 		if (X_Val > 127) X_Val -= 255;
 		if (Y_Val > 127) Y_Val -= 255;
-		int len = sprintf (Uart_Buf, "X=%d, Y=%d, Button1=%d, Button2=%d, Button3=%d\n", X_Val, Y_Val, \
-				                                Mouse_Info->buttons[0],Mouse_Info->buttons[1], Mouse_Info->buttons[2]);
-		HAL_UART_Transmit(&huart2, (uint8_t *) Uart_Buf, len, 100);
+		//int len = sprintf (Uart_Buf, "X=%d, Y=%d, Button1=%d, Button2=%d, Button3=%d\n\n", X_Val, Y_Val, Mouse_Info->buttons[0],Mouse_Info->buttons[1], Mouse_Info->buttons[2]);
+		//HAL_UART_Transmit(&huart2, (uint8_t *) Uart_Buf, len, 100);
+	    HAL_GPIO_TogglePin (GPIOC, GPIO_PIN_13);
 	    HAL_GPIO_TogglePin (GPIOC, GPIO_PIN_13);
 
 	    data[0] = 0;
@@ -130,34 +127,25 @@ void USBH_HID_EventCallback(USBH_HandleTypeDef *phost)
 	}
 }
 
+
 void LeftButtonUp() {
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_SET);
 }
 void LeftButtonDown() {
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_RESET);
 }
-
 void RightButtonUp() {
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_2, GPIO_PIN_SET);
 }
 void RightButtonDown() {
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_2, GPIO_PIN_RESET);
 }
-
 void MiddleButtonUp() {
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_10, GPIO_PIN_SET);
 }
 void MiddleButtonDown() {
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_10, GPIO_PIN_RESET);
 }
-
-
-void delay_us (uint16_t us)
-{
-	__HAL_TIM_SET_COUNTER(&htim4,0);  // set the counter value a 0
-	while ((uint16_t)__HAL_TIM_GET_COUNTER(&htim4) < us);  // wait for the counter to reach the us input in the parameter
-}
-
 
 void AMIGAHorizontalMove() {
 
@@ -168,7 +156,7 @@ void AMIGAHorizontalMove() {
     //digitalWrite(HQ_PLSE, HQ[QX]);
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, HQ[QX]);
 
-    delay_us(ADELAY);
+    DWT_Delay_us(ADELAY);
 }
 
 void AMIGAVerticalMove() {
@@ -179,14 +167,13 @@ void AMIGAVerticalMove() {
     //digitalWrite(VQ_PLSE, HQ[QY]);
 	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_7, HQ[QY]);
 
-	delay_us(ADELAY);
+	DWT_Delay_us(ADELAY);
 }
 
 void AMIGA_Left() {
 
     // do a move by setting the port
     AMIGAHorizontalMove();
-
     // advance in the quadr. sequence
     QX = (QX >= 3) ? 0 : ++QX;
 }
@@ -198,13 +185,16 @@ void AMIGA_Right() {
 
 void AMIGA_Down() {
     AMIGAVerticalMove();
-    QY = QY <= 0 ? 3 : --QY;
+    //QY = QY <= 0 ? 3 : --QY;
+    QY = QY >= 3 ? 0 : ++QY;
 }
 
 void AMIGA_Up() {
     AMIGAVerticalMove();
-    QY = QY >= 3 ? 0 : ++QY;
+    //QY = QY >= 3 ? 0 : ++QY;
+    QY = QY <= 0 ? 3 : --QY;
 }
+
 
 /* USER CODE END 0 */
 
@@ -238,8 +228,12 @@ int main(void)
   MX_GPIO_Init();
   MX_USB_HOST_Init();
   MX_USART2_UART_Init();
-  MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
+
+  if(DWT_Delay_Init())
+  {
+  Error_Handler(); /* Call Error Handler */
+  }
 
   // Set quadrature output pins to zero
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_6, GPIO_PIN_RESET);
@@ -252,7 +246,6 @@ int main(void)
   HAL_GPIO_WritePin(GPIOB, GPIO_PIN_2, GPIO_PIN_SET);
   HAL_GPIO_WritePin(GPIOB, GPIO_PIN_10, GPIO_PIN_SET);
 
-  HAL_TIM_Base_Start(&htim4);
   data[0]=0;
   /* USER CODE END 2 */
 
@@ -265,9 +258,10 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 
-    /*
+    __disable_irq();
     // handle buttons
     //
+
     if( data[0] & 1)
       LeftButtonDown();
     else
@@ -317,8 +311,7 @@ int main(void)
         }
 
     }
-	*/
-
+    __enable_irq();
   }
   /* USER CODE END 3 */
 }
@@ -364,51 +357,6 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
-}
-
-/**
-  * @brief TIM4 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_TIM4_Init(void)
-{
-
-  /* USER CODE BEGIN TIM4_Init 0 */
-
-  /* USER CODE END TIM4_Init 0 */
-
-  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
-  TIM_MasterConfigTypeDef sMasterConfig = {0};
-
-  /* USER CODE BEGIN TIM4_Init 1 */
-
-  /* USER CODE END TIM4_Init 1 */
-  htim4.Instance = TIM4;
-  htim4.Init.Prescaler = 84-1;
-  htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim4.Init.Period = 0xffff-1;
-  htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_Base_Init(&htim4) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
-  if (HAL_TIM_ConfigClockSource(&htim4, &sClockSourceConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim4, &sMasterConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN TIM4_Init 2 */
-
-  /* USER CODE END TIM4_Init 2 */
-
 }
 
 /**
@@ -460,10 +408,10 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5|GPIO_PIN_6|GPIO_PIN_7|GPIO_PIN_9, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5|GPIO_PIN_6|GPIO_PIN_7, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_10, GPIO_PIN_RESET);
@@ -475,8 +423,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PA5 PA6 PA7 PA9 */
-  GPIO_InitStruct.Pin = GPIO_PIN_5|GPIO_PIN_6|GPIO_PIN_7|GPIO_PIN_9;
+  /*Configure GPIO pins : PA5 PA6 PA7 */
+  GPIO_InitStruct.Pin = GPIO_PIN_5|GPIO_PIN_6|GPIO_PIN_7;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
